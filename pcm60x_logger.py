@@ -28,62 +28,29 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 QPIGS = b"\x51\x50\x49\x47\x53\xB7\xA9\x0D"
 
-ser = serial.Serial(port='/dev/ttyACM0',baudrate=2400,timeout=2)
+def open_gsheet()
+    """ Authenticate with GDocs and open the spreadsheet for editing"""
+    scope = ['https://spreadsheets.google.com/feeds',
+             'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+                'pythontest-425f92ff2f94.json',
+                scope
+            )
+    client = gspread.authorize(creds)
 
-ser.write(QPIGS)
-result = ser.read(70)
-ser.read()
-ser.read()
-print(result)
+    sheet = client.open("pcm60x_charging_log").sheet1
 
-scope = ['https://spreadsheets.google.com/feeds',
-        'https://www.googleapis.com/auth/drive']
-creds = ServiceAccountCredentials.from_json_keyfile_name('pythontest-425f92ff2f94.json', scope)
-client = gspread.authorize(creds)
+    return sheet
 
-
-sheet = client.open("pcm60x_charging_log").sheet1
-
-
-
-
-data = []
-times = []
-
-start = datetime.datetime.now()
-
-logtime = datetime.datetime.now()
-while (logtime - start).seconds < 10*60*60:
+def read_pcm60x()
     ser.write(QPIGS)
     result = ser.read(70)
     ser.read()
     ser.read()
     
-    try:
-        row = [logtime.hour + (logtime.minute / 60) + (logtime.second / 3600),
-               float(result[1:6].decode()),
-               float(result[7:12].decode()),
-               float(result[13:18].decode()),
-               float(result[19:24].decode()),
-               float(result[25:30].decode()),
-               float(result[31:35].decode()),
-               float(result[36:40].decode()),
-              ]
-    
-        times.append(logtime)
-        data.append(row)
-    
-        try:
-            sheet.insert_row(row, 2)
-            
-        except:
-            print('Google docs upload failed at {}'.format(logtime))
-            
-    except:
-        print('Serial read returned useless data at {}'.format(logtime))
-    
-    logtime = datetime.datetime.now()
-    time.sleep(60)
+    return result
+
+
 
 
 
@@ -123,3 +90,50 @@ ax[2].set_xlabel('Time (clock hour)')
 ax[0].set_ylabel('Battery Voltage (V)')
 ax[1].set_ylabel('Charging current (A)')
 ax[2].set_ylabel('Charging power (W)')
+
+def main()
+    """Logging loop, querying PCM 60x status and logging to GSheet"""
+
+    # Connect serial
+    ser = serial.Serial(port='/dev/ttyACM0',baudrate=2400,timeout=2)
+
+    # Initialise data arrays
+    data = []
+    times = []
+    
+    # Serial queries take a while, so the loop is referenced to clock time rather
+    # than counting the number of loops.
+    start = datetime.datetime.now()
+    
+    logtime = datetime.datetime.now()
+    while (logtime - start).seconds < 10*60*60:
+        result = read_pcm60x()
+
+        try:
+            row = [logtime.hour + (logtime.minute / 60) + (logtime.second / 3600),
+                   float(result[1:6].decode()),
+                   float(result[7:12].decode()),
+                   float(result[13:18].decode()),
+                   float(result[19:24].decode()),
+                   float(result[25:30].decode()),
+                   float(result[31:35].decode()),
+                   float(result[36:40].decode()),
+                  ]
+        
+            times.append(logtime)
+            data.append(row)
+        
+            try:
+                sheet.insert_row(row, 2)
+                
+            except:
+                print('Google docs upload failed at {}'.format(logtime))
+                
+        except:
+            print('Serial read returned useless data at {}'.format(logtime))
+        
+        logtime = datetime.datetime.now()
+        time.sleep(60)
+
+
+main()
