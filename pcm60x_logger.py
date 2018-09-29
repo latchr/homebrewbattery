@@ -28,86 +28,89 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 QPIGS = b"\x51\x50\x49\x47\x53\xB7\xA9\x0D"
 
-def open_gsheet()
+
+def open_gsheet():
     """ Authenticate with GDocs and open the spreadsheet for editing"""
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name(
-                'pythontest-425f92ff2f94.json',
-                scope
-            )
+        'pythontest-425f92ff2f94.json',
+        scope
+    )
     client = gspread.authorize(creds)
 
     sheet = client.open("pcm60x_charging_log").sheet1
 
     return sheet
 
-def read_pcm60x()
+
+def read_pcm60x(ser):
+    """Serial communication with PCM 60x charge controller"""
     ser.write(QPIGS)
     result = ser.read(70)
     ser.read()
     ser.read()
-    
+
     return result
 
 
+def save_log(data, times):
+    """Save the data to a log file and save a thumbnail plot"""
+
+    nptimes = np.zeros(len(times), dtype='datetime64[ms]')
+
+    for i, entry in enumerate(data):
+        nptimes[i] = np.datetime64(times[i])
+
+    numdata = np.array(data)
+
+    datestring = datetime.datetime.now().strftime("%Y%m%d")
+    np.savetxt(datestring + '_solar_charge_log.csv', numdata)
+    np.savetxt(datestring + '_solar_charge_log_times.csv', nptimes, fmt='%s')
+
+    # Draw figure
+    fig, ax = plt.subplots(3, figsize=[8, 8])
+
+    hours = mdates.HourLocator()   # every year
+    hoursFmt = mdates.DateFormatter('%H')
+
+    # format the ticks
+    for axis in ax:
+        axis.xaxis.set_major_locator(hours)
+        axis.xaxis.set_major_formatter(hoursFmt)
+
+    ax[0].plot(nptimes, numdata[:, 2])
+    ax[1].plot(nptimes, numdata[:, 3])
+    ax[2].plot(nptimes, numdata[:, 6])
+
+    ax[2].set_xlabel('Time (clock hour)')
+    ax[0].set_ylabel('Battery Voltage (V)')
+    ax[1].set_ylabel('Charging current (A)')
+    ax[2].set_ylabel('Charging power (W)')
+
+    fig.savefig(datestring + '_solar_charge_log.png')
 
 
-
-
-
-nptimes = np.zeros(len(times), dtype='datetime64[ms]')
-
-for i, entry in enumerate(data):
-    nptimes[i] = np.datetime64(times[i])
-
-numdata = np.array(data)
-
-
-
-np.savetxt('20180926_solar_charge_log.csv', data)
-np.savetxt('20180926_solar_charge_log_times.csv', nptimes, fmt='%s')
-
-
-
-
-
-fig, ax = plt.subplots(3, figsize=[8, 8])
-
-hours = mdates.HourLocator()   # every year
-hoursFmt = mdates.DateFormatter('%H')
-
-# format the ticks
-for axis in ax:
-    axis.xaxis.set_major_locator(hours)
-    axis.xaxis.set_major_formatter(hoursFmt)
-
-ax[0].plot(nptimes, numdata[:, 2])
-ax[1].plot(nptimes, numdata[:, 3])
-ax[2].plot(nptimes, numdata[:, 6])
-
-ax[2].set_xlabel('Time (clock hour)')
-ax[0].set_ylabel('Battery Voltage (V)')
-ax[1].set_ylabel('Charging current (A)')
-ax[2].set_ylabel('Charging power (W)')
-
-def main()
+def main():
     """Logging loop, querying PCM 60x status and logging to GSheet"""
 
     # Connect serial
-    ser = serial.Serial(port='/dev/ttyACM0',baudrate=2400,timeout=2)
+    ser = serial.Serial(port='/dev/ttyACM0', baudrate=2400, timeout=2)
+
+    # Open Google spreadsheet
+    sheet = open_gsheet()
 
     # Initialise data arrays
     data = []
     times = []
-    
+
     # Serial queries take a while, so the loop is referenced to clock time rather
     # than counting the number of loops.
     start = datetime.datetime.now()
-    
+
     logtime = datetime.datetime.now()
-    while (logtime - start).seconds < 10*60*60:
-        result = read_pcm60x()
+    while (logtime - start).seconds < 10 * 60 * 60:
+        result = read_pcm60x(ser)
 
         try:
             row = [logtime.hour + (logtime.minute / 60) + (logtime.second / 3600),
@@ -119,21 +122,28 @@ def main()
                    float(result[31:35].decode()),
                    float(result[36:40].decode()),
                   ]
-        
+
             times.append(logtime)
             data.append(row)
-        
+
             try:
                 sheet.insert_row(row, 2)
-                
+
             except:
-                print('Google docs upload failed at {}'.format(logtime))
-                
+                # Re-open Google spreadsheet
+                sheet = open_gsheet()
+                try:
+                    sheet.insert_row(row, 2)
+                except:
+                    print('Google docs upload failed at {}'.format(logtime))
+
         except:
             print('Serial read returned useless data at {}'.format(logtime))
-        
+
         logtime = datetime.datetime.now()
         time.sleep(60)
+
+    save_log(data, times)
 
 
 main()
