@@ -23,6 +23,7 @@ import time
 import datetime
 import numpy as np
 import gspread
+import matplotlib.pyplot as plt
 from oauth2client.service_account import ServiceAccountCredentials
 
 
