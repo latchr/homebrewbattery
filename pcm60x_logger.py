@@ -56,6 +56,11 @@ def read_pcm60x(ser):
     return result
 
 
+def read_pcm60x_dummy(ser):
+    """ Simulate serial communication for debugging and testing
+    """
+    return '032.3 24.02 00.10 00.00 00.10 0045 +023'.encode()
+
 def save_log(data, times):
     """Save the data to a log file and save a thumbnail plot"""
 
@@ -93,6 +98,12 @@ def save_log(data, times):
     fig.savefig(datestring + '_solar_charge_log.png')
 
 
+def reset_gsheet(spreadsheet):
+    """ Reset the spreadsheet for a new day of data"""
+    for i in range(700):
+        spreadsheet.delete_row(2)
+        time.sleep(2)
+
 def main():
     """Logging loop, querying PCM 60x status and logging to GSheet"""
 
@@ -101,6 +112,9 @@ def main():
 
     # Open Google spreadsheet
     sheet = open_gsheet()
+
+    # Clear previous day's data
+    reset_gsheet(sheet)
 
     # Initialise data arrays
     data = []
