@@ -105,14 +105,16 @@ def main():
     # Initialise data arrays
     data = []
     times = []
+    energy = 0.0
 
     # Serial queries take a while, so the loop is referenced to clock time rather
     # than counting the number of loops.
     start = datetime.datetime.now()
 
     logtime = datetime.datetime.now()
-    while (logtime - start).seconds < 10 * 60 * 60:
+    while (logtime - start).seconds < 12 * 60 * 60:
         result = read_pcm60x(ser)
+        thistime = datetime.datetime.now()
 
         try:
             row = [logtime.hour + (logtime.minute / 60) + (logtime.second / 3600),
@@ -127,9 +129,11 @@ def main():
 
             times.append(logtime)
             data.append(row)
+            energy += row[6] * (thistime - logtime).seconds / 3600
 
             try:
                 sheet.insert_row(row, 2)
+                sheet.update_acell('I1', energy)
 
             except:
                 # Re-open Google spreadsheet
@@ -142,8 +146,8 @@ def main():
         except:
             print('Serial read returned useless data at {}'.format(logtime))
 
-        logtime = datetime.datetime.now()
         time.sleep(60)
+        logtime = thistime
 
     save_log(data, times)
 
