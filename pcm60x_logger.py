@@ -31,7 +31,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 QPIGS = b"\x51\x50\x49\x47\x53\xB7\xA9\x0D"
 
 
-def open_gsheet():
+def open_gsheet(worksheet_idx=0):
     """ Authenticate with GDocs and open the spreadsheet for editing"""
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
@@ -41,7 +41,7 @@ def open_gsheet():
     )
     client = gspread.authorize(creds)
 
-    sheet = client.open("pcm60x_charging_log").sheet1
+    sheet = client.open("pcm60x_charging_log").get_worksheet(worksheet_idx)
 
     return sheet
 
@@ -60,6 +60,7 @@ def read_pcm60x_dummy(ser):
     """ Simulate serial communication for debugging and testing
     """
     return '032.3 24.02 00.10 00.00 00.10 0045 +023'.encode()
+
 
 def save_log(data, times):
     """Save the data to a log file and save a thumbnail plot"""
@@ -98,11 +99,19 @@ def save_log(data, times):
     fig.savefig(datestring + '_solar_charge_log.png')
 
 
+def write_daily_energy(starttime, energy):
+    """Write daily energy harvested figure to another sheet."""
+    energy_sheet = open_gsheet(worksheet_idx=2)
+    datestring = '{}/{}/{}'.format(starttime.day, starttime.month, starttime.year)
+    energy_sheet.insert_row([datestring, energy], 2, value_input_option='USER_ENTERED')
+
+
 def reset_gsheet(spreadsheet):
     """ Reset the spreadsheet for a new day of data"""
     for i in range(700):
         spreadsheet.delete_row(2)
         time.sleep(2)
+
 
 def main():
     """Logging loop, querying PCM 60x status and logging to GSheet"""
@@ -139,7 +148,7 @@ def main():
                    float(result[25:30].decode()),
                    float(result[31:35].decode()),
                    float(result[36:40].decode()),
-                  ]
+                   ]
 
             times.append(logtime)
             data.append(row)
@@ -162,6 +171,8 @@ def main():
 
         time.sleep(60)
         logtime = thistime
+
+    write_daily_energy(start, energy)
 
     save_log(data, times)
 
