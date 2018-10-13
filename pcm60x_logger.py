@@ -135,7 +135,7 @@ def main():
     start = datetime.datetime.now()
 
     logtime = datetime.datetime.now()
-    while (logtime - start).seconds < 12 * 60 * 60:
+    while (logtime - start).seconds < 13.5 * 60 * 60:
         result = read_pcm60x(ser)
         thistime = datetime.datetime.now()
 
