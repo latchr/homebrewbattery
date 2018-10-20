@@ -123,7 +123,7 @@ def main():
     # combine to a string
     data_str = ",".join(data_arrstr)
 
-    with open('string1_pack_v_log.dat', 'a') as fd:
+    with open('../logs/string1_pack_v_log.dat', 'a') as fd:
         fd.write(datestring + ',' + data_str)
 
     # Print out some feedback upon completion
